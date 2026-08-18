@@ -1,0 +1,86 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String @id @default(uuid())
+  email        String @unique
+  passwordHash String
+
+  modpacks Modpack[]
+}
+
+model Game {
+  id      String @id @default(uuid())
+  name    String
+  loader  String
+  version String
+
+  mods Mod[]
+}
+
+model Mod {
+  id      String @id @default(uuid())
+  name    String
+  version String
+
+  gameId String
+  game   Game   @relation(fields: [gameId], references: [id])
+
+  dependencies ModDependency[] @relation("ModDependencies")
+  dependents   ModDependency[] @relation("ModDependents")
+
+  incompatibilities ModIncompatibility[] @relation("ModIncompatibilities")
+  incompatibleWith  ModIncompatibility[] @relation("ModIncompatibleWith")
+
+  modpacks ModpackMod[]
+}
+
+model ModDependency {
+  modId        String
+  dependencyId String
+
+  mod        Mod @relation("ModDependencies", fields: [modId], references: [id])
+  dependency Mod @relation("ModDependents", fields: [dependencyId], references: [id])
+
+  @@id([modId, dependencyId])
+}
+
+model ModIncompatibility {
+  modId          String
+  incompatibleId String
+
+  mod          Mod @relation("ModIncompatibilities", fields: [modId], references: [id])
+  incompatible Mod @relation("ModIncompatibleWith", fields: [incompatibleId], references: [id])
+
+  @@id([modId, incompatibleId])
+}
+
+model Modpack {
+  id   String @id @default(uuid())
+  name String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  mods ModpackMod[]
+}
+
+model ModpackMod {
+  modpackId String
+  modId     String
+
+  modpack Modpack @relation(fields: [modpackId], references: [id])
+  mod     Mod     @relation(fields: [modId], references: [id])
+
+  @@id([modpackId, modId])
+}
