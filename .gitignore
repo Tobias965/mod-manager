@@ -28,6 +28,7 @@
 .agents/
 .claude/
 .windsurf/
+skills-lock.json
 
 # debug
 npm-debug.log*
