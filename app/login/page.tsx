@@ -1,17 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
     setError("");
@@ -36,8 +33,8 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      // Refresco completo para enviar cookies y purgar el caché del router
+      window.location.href = "/";
     } catch {
       setError("No se pudo conectar con el servidor");
     } finally {

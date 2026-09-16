@@ -1,7 +1,5 @@
 // This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// learn more about it: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -12,30 +10,121 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id           String @id @default(uuid())
-  email        String @unique
-  passwordHash String
+enum UserRole {
+  USER
+  CREATOR
+  ADMIN
+}
 
+enum ModStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CreatorRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(USER)
+
+  // Modpacks creados por el usuario
   modpacks Modpack[]
+
+  // Mods creados por el usuario
+  mods Mod[]
+
+  // Solicitud de creador (relación 1 a 1 opcional)
+  creatorRequest CreatorRequest?
+}
+
+model CreatorRequest {
+  id        String               @id @default(uuid())
+  status    CreatorRequestStatus @default(PENDING)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([status])
 }
 
 model Game {
-  id      String @id @default(uuid())
-  name    String
-  loader  String
-  version String
+  id        String    @id @default(uuid())
+  name      String
+  deletedAt DateTime?
+
+  versions GameVersion[]
 
   mods Mod[]
+  modpacks  Modpack[]
+
+  createdAt DateTime @default(now())
+
+  @@index([name])
+  @@index([deletedAt])
+}
+
+model GameVersion {
+  id      String @id @default(uuid())
+  version String
+
+  // Juego al que pertenece esta versión
+  gameId String
+  game   Game @relation(fields: [gameId], references: [id])
+
+  // Mods compatibles con esta versión
+  mods Mod[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([gameId, version])
+}
+
+model Category {
+  id   String @id @default(uuid())
+  name String @unique
+
+  mods ModCategory[]
 }
 
 model Mod {
-  id      String @id @default(uuid())
-  name    String
-  version String
+  id          String    @id @default(uuid())
+  name        String
+  version     String
+  license     String?
+  externalUrl String?
+  fileUrl     String?
+  storageKey  String?
+  fileName    String?
+  fileSize    Int?
+  fileHash    String?
+  mimeType    String?
+  status      ModStatus @default(PENDING)
 
+  // Borrado lógico
+  deletedAt DateTime?
+
+  // Juego al que pertenece
   gameId String
-  game   Game   @relation(fields: [gameId], references: [id])
+  game   Game @relation(fields: [gameId], references: [id])
+
+  // Versión específica del juego compatible con el mod
+  gameVersionId String
+  gameVersion   GameVersion @relation(fields: [gameVersionId], references: [id])
+
+  // Usuario creador
+  authorId String
+  author   User @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
 
   dependencies ModDependency[] @relation("ModDependencies")
   dependents   ModDependency[] @relation("ModDependents")
@@ -43,7 +132,25 @@ model Mod {
   incompatibilities ModIncompatibility[] @relation("ModIncompatibilities")
   incompatibleWith  ModIncompatibility[] @relation("ModIncompatibleWith")
 
+  // Categorías
+  categories ModCategory[]
+
+  // Modpacks
   modpacks ModpackMod[]
+
+  @@index([authorId])
+  @@index([deletedAt])
+  @@index([authorId, deletedAt])
+}
+
+model ModCategory {
+  modId      String
+  categoryId String
+
+  mod      Mod      @relation(fields: [modId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@id([modId, categoryId])
 }
 
 model ModDependency {
@@ -67,13 +174,22 @@ model ModIncompatibility {
 }
 
 model Modpack {
-  id   String @id @default(uuid())
-  name String
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isPublic    Boolean  @default(false) // Permite diferenciar públicos de privados
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User @relation(fields: [userId], references: [id])
+
+  gameId      String
+  game        Game     @relation(fields: [gameId], references: [id])
 
   mods ModpackMod[]
+
+  @@index([isPublic]) // Índice para optimizar la búsqueda de modpacks públicos
 }
 
 model ModpackMod {
@@ -85,3 +201,4 @@ model ModpackMod {
 
   @@id([modpackId, modId])
 }
+

@@ -47,13 +47,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const token = await createToken(user.id);
+    const token = await createToken(user.id, user.role);
 
     const response = NextResponse.json({
       message: "Login correcto",
       user: {
         id: user.id,
         email: user.email,
+        role: user.role,
       },
     });
 

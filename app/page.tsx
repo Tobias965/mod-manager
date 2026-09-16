@@ -1,9 +1,22 @@
+import Link from "next/link";
+
 import { prisma } from "@/lib/prisma";
+
+// ==================================================
+// PÁGINA PRINCIPAL
+// ==================================================
 
 export default async function HomePage() {
   const games = await prisma.game.findMany({
+    where: {
+      deletedAt: null,
+    },
     include: {
-      mods: true,
+      versions: {
+        orderBy: {
+          version: "asc",
+        },
+      },
     },
     orderBy: {
       name: "asc",
@@ -13,33 +26,20 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen bg-gray-100 px-6 py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-10 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold">
-              Mod Manager
-            </h1>
 
-            <p className="mt-2 text-gray-600">
-              Explora juegos y mods disponibles.
-            </p>
-          </div>
+        {/* CABECERA */}
 
-          <div className="flex gap-3">
-            <a
-              href="/login"
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 font-medium hover:bg-gray-50"
-            >
-              Iniciar sesión
-            </a>
+        <div className="mb-10">
+          <h1 className="text-4xl font-bold text-gray-900">
+            Mod Manager
+          </h1>
 
-            <a
-              href="/register"
-              className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
-            >
-              Registrarse
-            </a>
-          </div>
+          <p className="mt-2 text-gray-600">
+            Explora juegos, versiones y mods disponibles.
+          </p>
         </div>
+
+        {/* SIN JUEGOS */}
 
         {games.length === 0 ? (
           <div className="rounded-lg bg-white p-8 text-center shadow">
@@ -48,58 +48,70 @@ export default async function HomePage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2">
+
+          /* JUEGOS */
+
+          <div className="space-y-6">
             {games.map((game) => (
-              <div
+              <section
                 key={game.id}
                 className="rounded-lg bg-white p-6 shadow-md"
               >
-                <h2 className="text-2xl font-bold">
-                  {game.name}
-                </h2>
 
-                <div className="mt-2 flex gap-2 text-sm">
-                  <span className="rounded bg-blue-100 px-2 py-1 text-blue-800">
-                    {game.loader}
-                  </span>
+                {/* JUEGO */}
 
-                  <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">
-                    {game.version}
-                  </span>
+                <div className="mb-5">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {game.name}
+                  </h2>
+
+                  <p className="mt-1 text-sm text-gray-500">
+                    {game.versions.length}{" "}
+                    {game.versions.length === 1
+                      ? "versión registrada"
+                      : "versiones registradas"}
+                  </p>
                 </div>
 
-                <h3 className="mt-6 mb-3 font-semibold">
-                  Mods disponibles
-                </h3>
+                {/* VERSIONES */}
 
-                {game.mods.length === 0 ? (
+                {game.versions.length === 0 ? (
                   <p className="text-sm text-gray-500">
-                    No hay mods registrados.
+                    Este juego no tiene versiones registradas.
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {game.mods.map((mod) => (
-                      <div
-                        key={mod.id}
-                        className="rounded-md border border-gray-200 p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            {mod.name}
-                          </span>
+                  <details className="rounded-md border border-gray-200">
+                    <summary className="cursor-pointer px-4 py-3 font-medium text-gray-900 hover:bg-gray-50">
+                      Ver versiones
+                    </summary>
 
-                          <span className="text-sm text-gray-500">
-                            v{mod.version}
-                          </span>
-                        </div>
+                    <div className="border-t border-gray-200 p-3">
+                      <div className="space-y-2">
+                        {game.versions.map((gameVersion) => (
+                          <Link
+                            key={gameVersion.id}
+                            href={`/games/${game.id}/versions/${gameVersion.id}`}
+                            className="flex items-center justify-between rounded-md border border-gray-200 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50"
+                          >
+                            <span className="text-sm font-medium text-gray-800">
+                              Versión {gameVersion.version}
+                            </span>
+
+                            <span className="text-sm font-medium text-blue-600">
+                              Ver mods →
+                            </span>
+                          </Link>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  </details>
                 )}
-              </div>
+
+              </section>
             ))}
           </div>
         )}
+
       </div>
     </main>
   );
