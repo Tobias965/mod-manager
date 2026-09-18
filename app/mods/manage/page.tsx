@@ -182,13 +182,13 @@ export default function ManageModsPage() {
   function getStatusClass(status: ModStatus) {
     switch (status) {
       case "APPROVED":
-        return "bg-green-100 text-green-800";
+        return "border border-[#27584C] bg-[#15302B] text-[#5DD6B1]";
       case "PENDING":
-        return "bg-yellow-100 text-yellow-800";
+        return "border border-[#625B2B] bg-[#302D18] text-[#E5D36A]";
       case "REJECTED":
-        return "bg-red-100 text-red-800";
+        return "border border-[#5D3043] bg-[#321D27] text-[#D9789C]";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "border border-[#24323E] bg-[#111116] text-[#929EA7]";
     }
   }
 

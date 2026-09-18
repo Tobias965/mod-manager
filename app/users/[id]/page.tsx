@@ -356,7 +356,7 @@ export default function UserDetailPage({
               <div
                 className={`mt-4 rounded-md p-3 text-sm ${
                   creatorRequestMessage.type === "success"
-                    ? "bg-green-100 text-green-800"
+                    ? "border border-[#286052] bg-[#15332C] text-[#65D6B4]"
                     : "bg-red-100 text-red-800"
                 }`}
               >
@@ -365,24 +365,24 @@ export default function UserDetailPage({
             )}
 
             {creatorRequest?.status === "PENDING" ? (
-              <div className="mt-4 rounded-md border border-yellow-200 bg-yellow-50 p-4">
-                <p className="font-medium text-yellow-800">
+              <div className="mt-4 rounded-md border border-[#625B2B] bg-[#302D18] p-4">
+                <p className="font-medium text-[#E5D36A]">
                   Solicitud pendiente
                 </p>
 
-                <p className="mt-1 text-sm text-yellow-700">
+                <p className="mt-1 text-sm text-[#E5D36A]">
                   Tu solicitud está siendo revisada por un
                   administrador.
                 </p>
               </div>
             ) : creatorRequest?.status === "REJECTED" ? (
               <div className="mt-4">
-                <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4">
-                  <p className="font-medium text-red-800">
+                <div className="mb-4 rounded-md border border-[#653344] bg-[#351D28] p-4">
+                  <p className="font-medium text-[#E084A0]">
                     Solicitud rechazada
                   </p>
 
-                  <p className="mt-1 text-sm text-red-700">
+                  <p className="mt-1 text-sm text-[#E084A0]">
                     Tu solicitud anterior fue rechazada. Puedes
                     enviar una nueva solicitud.
                   </p>

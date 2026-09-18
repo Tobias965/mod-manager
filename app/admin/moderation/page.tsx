@@ -226,7 +226,7 @@ export default async function ModerationPanel() {
                         </p>
                       </div>
 
-                      <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-800">
+                      <span className="rounded-full border border-[#625B2B] bg-[#302D18] px-3 py-1 text-xs font-medium text-[#E5D36A]">
                         PENDING
                       </span>
                     </div>
@@ -300,7 +300,7 @@ export default async function ModerationPanel() {
                             (modCategory) => (
                               <span
                                 key={`${mod.id}-${modCategory.categoryId}`}
-                                className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-800"
+                                className="rounded border border-[#245466] bg-[#172A35] px-2 py-1 text-xs text-[#55C7D8]"
                               >
                                 {modCategory.category.name}
                               </span>
@@ -326,7 +326,7 @@ export default async function ModerationPanel() {
                             (dependency) => (
                               <div
                                 key={`${mod.id}-${dependency.dependencyId}`}
-                                className="rounded-md border border-gray-200 bg-gray-50 p-3"
+                                className="rounded-md border border-[#29495A] bg-[#172631] p-3"
                               >
                                 <div className="flex items-center justify-between gap-3">
 
@@ -370,7 +370,7 @@ export default async function ModerationPanel() {
                             (incompatibility) => (
                               <div
                                 key={`${mod.id}-${incompatibility.incompatibleId}`}
-                                className="rounded-md border border-red-200 bg-red-50 p-3"
+                                className="rounded-md border border-[#50365A] bg-[#281E2B] p-3"
                               >
                                 <div className="flex items-center justify-between gap-3">
 
@@ -513,7 +513,7 @@ export default async function ModerationPanel() {
                       >
                         <button
                           type="submit"
-                          className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                          className="rounded-md border border-[#653344] bg-[#351D28] px-4 py-2 text-sm font-medium text-[#E084A0] hover:bg-[#351D28]"
                         >
                           Rechazar
                         </button>
@@ -528,7 +528,7 @@ export default async function ModerationPanel() {
                       >
                         <button
                           type="submit"
-                          className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+                          className="rounded-md border border-[#286052] bg-[#15332C] px-4 py-2 text-sm font-medium text-[#65D6B4] hover:bg-[#15332C]"
                         >
                           Aprobar
                         </button>

@@ -181,7 +181,7 @@ export default function CreatorRequestsPage() {
                     </p>
 
                     <div className="mt-3">
-                      <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-800">
+                      <span className="rounded-full border border-[#625B2B] bg-[#302D18] px-3 py-1 text-xs font-medium text-[#E5D36A]">
                         Pendiente
                       </span>
                     </div>
@@ -197,7 +197,7 @@ export default function CreatorRequestsPage() {
                         handleRequest(request.id, "REJECT")
                       }
                       disabled={processingId === request.id}
-                      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-md border border-[#653344] bg-[#351D28] px-4 py-2 text-sm font-medium text-[#E084A0] transition hover:bg-[#351D28] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {processingId === request.id
                         ? "Procesando..."
@@ -210,7 +210,7 @@ export default function CreatorRequestsPage() {
                         handleRequest(request.id, "APPROVE")
                       }
                       disabled={processingId === request.id}
-                      className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-md border border-[#286052] bg-[#15332C] px-4 py-2 text-sm font-medium text-[#65D6B4] transition hover:bg-[#15332C] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {processingId === request.id
                         ? "Procesando..."

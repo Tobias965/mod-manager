@@ -3,126 +3,87 @@ import { cookies } from "next/headers";
 
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
+import { generateSuggestions } from "@/lib/ai/suggestions";
 
-interface SuggestionsRequest {
-  gameId?: string;
-  gameVersionId?: string;
-  categoryId?: string;
-  modIds?: string[];
-}
-
-interface Suggestion {
+type AISuggestion = {
   modId: string;
   reason: string;
-}
+};
+
+type AIResponse = {
+  suggestions?: AISuggestion[];
+};
 
 export async function POST(req: Request) {
   try {
-    // ==================================================
-    // 1. Verificar sesión
-    // ==================================================
+    // --------------------------------------------------
+    // AUTENTICACIÓN
+    // --------------------------------------------------
 
     const cookieStore = await cookies();
-
-    const token =
-      cookieStore.get("session")?.value;
+    const token = cookieStore.get("session")?.value;
 
     if (!token) {
       return NextResponse.json(
         {
           error: "No autenticado",
         },
-        {
-          status: 401,
-        }
+        { status: 401 },
       );
     }
 
-    try {
-      await verifyToken(token);
-    } catch {
+    const user = await verifyToken(token);
+
+    if (!user) {
       return NextResponse.json(
         {
           error: "Sesión inválida",
         },
-        {
-          status: 401,
-        }
+        { status: 401 },
       );
     }
 
-    // ==================================================
-    // 2. Leer datos
-    // ==================================================
+    // --------------------------------------------------
+    // DATOS DE LA SOLICITUD
+    // --------------------------------------------------
 
-    const body =
-      (await req.json()) as SuggestionsRequest;
+    const body = await req.json();
 
-    const gameId = String(
-      body.gameId ?? ""
-    ).trim();
+    const gameId =
+      typeof body.gameId === "string"
+        ? body.gameId
+        : undefined;
 
-    const gameVersionId = String(
-      body.gameVersionId ?? ""
-    ).trim();
+    const gameVersionId =
+      typeof body.gameVersionId === "string"
+        ? body.gameVersionId
+        : undefined;
 
-    const categoryId = String(
-      body.categoryId ?? ""
-    ).trim();
+    const categoryId =
+      typeof body.categoryId === "string"
+        ? body.categoryId
+        : undefined;
 
-    const selectedModIds = Array.isArray(
-      body.modIds
-    )
-      ? [
-          ...new Set(
-            body.modIds.filter(
-              (id): id is string =>
-                typeof id === "string" &&
-                id.trim() !== ""
-            )
-          ),
-        ]
+    const selectedModIds = Array.isArray(body.modIds)
+      ? body.modIds.filter(
+          (id: unknown): id is string =>
+            typeof id === "string",
+        )
       : [];
 
-    if (!gameId) {
+    if (!gameId || !gameVersionId || !categoryId) {
       return NextResponse.json(
         {
           error:
-            "Debes seleccionar un juego",
+            "Faltan datos para generar las sugerencias.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 },
       );
     }
 
-    if (!gameVersionId) {
-      return NextResponse.json(
-        {
-          error:
-            "Debes seleccionar una versión",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!categoryId) {
-      return NextResponse.json(
-        {
-          error:
-            "Debes seleccionar una categoría",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    // ==================================================
-    // 3. Verificar juego y versión
-    // ==================================================
+    // --------------------------------------------------
+    // VALIDAR VERSIÓN DEL JUEGO
+    // --------------------------------------------------
 
     const gameVersion =
       await prisma.gameVersion.findFirst({
@@ -130,17 +91,9 @@ export async function POST(req: Request) {
           id: gameVersionId,
           gameId,
         },
-
         select: {
           id: true,
           version: true,
-
-          game: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
         },
       });
 
@@ -148,24 +101,21 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "La versión seleccionada no pertenece al juego",
+            "La versión seleccionada no pertenece al juego.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 },
       );
     }
 
-    // ==================================================
-    // 4. Verificar categoría
-    // ==================================================
+    // --------------------------------------------------
+    // VALIDAR CATEGORÍA
+    // --------------------------------------------------
 
     const category =
       await prisma.category.findUnique({
         where: {
           id: categoryId,
         },
-
         select: {
           id: true,
           name: true,
@@ -176,17 +126,15 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "La categoría seleccionada no existe",
+            "La categoría seleccionada no existe.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 },
       );
     }
 
-    // ==================================================
-    // 5. Obtener mods actualmente seleccionados
-    // ==================================================
+    // --------------------------------------------------
+    // MODS SELECCIONADOS
+    // --------------------------------------------------
 
     const selectedMods =
       selectedModIds.length > 0
@@ -195,16 +143,11 @@ export async function POST(req: Request) {
               id: {
                 in: selectedModIds,
               },
-
               gameId,
-
               gameVersionId,
-
               status: "APPROVED",
-
               deletedAt: null,
             },
-
             select: {
               id: true,
               name: true,
@@ -214,6 +157,7 @@ export async function POST(req: Request) {
                 select: {
                   category: {
                     select: {
+                      id: true,
                       name: true,
                     },
                   },
@@ -226,6 +170,7 @@ export async function POST(req: Request) {
                     select: {
                       id: true,
                       name: true,
+                      version: true,
                     },
                   },
                 },
@@ -237,563 +182,446 @@ export async function POST(req: Request) {
                     select: {
                       id: true,
                       name: true,
+                      version: true,
                     },
                   },
                 },
               },
-
-              incompatibleWith: {
-                select: {
-                  mod: {
-                    select: {
-                      id: true,
-                      name: true,
-                    },
-                  },
-                },
-              },
-            },
-
-            orderBy: {
-              name: "asc",
             },
           })
         : [];
 
-    if (
-      selectedMods.length !==
-      selectedModIds.length
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Uno o más mods seleccionados no son válidos",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
+    const selectedSet = new Set(
+      selectedMods.map((mod) => mod.id),
+    );
 
-    // ==================================================
-    // 6. Obtener candidatos
-    // ==================================================
+    // --------------------------------------------------
+    // MODS CANDIDATOS
+    // --------------------------------------------------
 
-    const candidates =
-      await prisma.mod.findMany({
-        where: {
-          gameId,
+    const candidates = await prisma.mod.findMany({
+      where: {
+        gameId,
+        gameVersionId,
+        status: "APPROVED",
+        deletedAt: null,
 
-          gameVersionId,
-
-          status: "APPROVED",
-
-          deletedAt: null,
-
-          id: {
-            notIn: selectedModIds,
-          },
-
-          categories: {
-            some: {
-              categoryId,
-            },
-          },
+        id: {
+          notIn: selectedModIds,
         },
 
-        select: {
-          id: true,
-          name: true,
-          version: true,
-
-          categories: {
-            select: {
-              category: {
-                select: {
-                  name: true,
-                },
-              },
-            },
+        categories: {
+          some: {
+            categoryId,
           },
+        },
+      },
 
-          dependencies: {
-            select: {
-              dependency: {
-                select: {
-                  id: true,
-                  name: true,
-                  version: true,
-                  status: true,
-                  deletedAt: true,
-                },
-              },
-            },
-          },
+      select: {
+        id: true,
+        name: true,
+        version: true,
 
-          incompatibilities: {
-            select: {
-              incompatible: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-
-          incompatibleWith: {
-            select: {
-              mod: {
-                select: {
-                  id: true,
-                  name: true,
-                },
+        categories: {
+          select: {
+            category: {
+              select: {
+                id: true,
+                name: true,
               },
             },
           },
         },
 
-        orderBy: {
-          name: "asc",
+        dependencies: {
+          select: {
+            dependency: {
+              select: {
+                id: true,
+                name: true,
+                version: true,
+              },
+            },
+          },
         },
 
-        take: 30,
-      });
+        incompatibilities: {
+          select: {
+            incompatible: {
+              select: {
+                id: true,
+                name: true,
+                version: true,
+              },
+            },
+          },
+        },
+      },
+
+      take: 30,
+    });
+
+    // --------------------------------------------------
+    // NO HAY CANDIDATOS
+    // --------------------------------------------------
 
     if (candidates.length === 0) {
       return NextResponse.json({
-        game: gameVersion.game,
-        version: gameVersion.version,
-        category,
         suggestions: [],
         message:
-          "No hay mods aprobados disponibles en esta categoría para la versión seleccionada.",
+          "No hay otros mods aprobados disponibles en esta categoría para la versión seleccionada.",
       });
     }
 
-    // ==================================================
-    // 7. Preparar información para Gemini
-    // ==================================================
+    // --------------------------------------------------
+    // MAPA DE CANDIDATOS
+    // --------------------------------------------------
 
-    const selectedData =
-      selectedMods.map((mod) => ({
-        id: mod.id,
-        name: mod.name,
-        version: mod.version,
+    const candidateMap = new Map(
+      candidates.map((mod) => [mod.id, mod]),
+    );
 
-        categories:
-          mod.categories.map(
-            (item) => item.category.name
-          ),
+    // --------------------------------------------------
+    // PREPARAR DATOS PARA LA IA
+    // --------------------------------------------------
 
-        dependencies:
-          mod.dependencies.map(
-            (item) => ({
-              id: item.dependency.id,
-              name: item.dependency.name,
-            })
-          ),
+    const selectedData = selectedMods.map((mod) => ({
+      id: mod.id,
+      name: mod.name,
+      version: mod.version,
 
-        incompatibilities: [
-          ...mod.incompatibilities.map(
-            (item) => ({
-              id: item.incompatible.id,
-              name: item.incompatible.name,
-            })
-          ),
+      categories: mod.categories.map(
+        (item) => item.category.name,
+      ),
 
-          ...mod.incompatibleWith.map(
-            (item) => ({
-              id: item.mod.id,
-              name: item.mod.name,
-            })
-          ),
-        ],
-      }));
+      dependencies: mod.dependencies.map(
+        (item) => ({
+          id: item.dependency.id,
+          name: item.dependency.name,
+          version: item.dependency.version,
+        }),
+      ),
 
-    const candidateData =
-      candidates.map((mod) => ({
-        id: mod.id,
-        name: mod.name,
-        version: mod.version,
+      incompatibilities:
+        mod.incompatibilities.map(
+          (item) => ({
+            id: item.incompatible.id,
+            name: item.incompatible.name,
+            version: item.incompatible.version,
+          }),
+        ),
+    }));
 
-        categories:
-          mod.categories.map(
-            (item) => item.category.name
-          ),
+    const candidateData = candidates.map((mod) => ({
+      id: mod.id,
+      name: mod.name,
+      version: mod.version,
 
-        dependencies:
-          mod.dependencies.map(
-            (item) => ({
-              id: item.dependency.id,
-              name: item.dependency.name,
-              version:
-                item.dependency.version,
-              status:
-                item.dependency.status,
-              deleted:
-                item.dependency.deletedAt !==
-                null,
-            })
-          ),
+      categories: mod.categories.map(
+        (item) => item.category.name,
+      ),
 
-        incompatibilities: [
-          ...mod.incompatibilities.map(
-            (item) => ({
-              id: item.incompatible.id,
-              name: item.incompatible.name,
-            })
-          ),
+      dependencies: mod.dependencies.map(
+        (item) => ({
+          id: item.dependency.id,
+          name: item.dependency.name,
+          version: item.dependency.version,
+        }),
+      ),
 
-          ...mod.incompatibleWith.map(
-            (item) => ({
-              id: item.mod.id,
-              name: item.mod.name,
-            })
-          ),
-        ],
-      }));
+      incompatibilities:
+        mod.incompatibilities.map(
+          (item) => ({
+            id: item.incompatible.id,
+            name: item.incompatible.name,
+            version: item.incompatible.version,
+          }),
+        ),
+    }));
 
-    // ==================================================
-    // 8. Gemini
-    // ==================================================
-
-    const apiKey =
-      process.env.GEMINI_API_KEY;
-
-    if (!apiKey) {
-      return NextResponse.json(
-        {
-          error:
-            "GEMINI_API_KEY no está configurada en el servidor",
-        },
-        {
-          status: 500,
-        }
-      );
-    }
-
-    const model =
-      process.env.GEMINI_MODEL ??
-      "gemini-2.5-flash";
+    // --------------------------------------------------
+    // PROMPT
+    // --------------------------------------------------
 
     const prompt = `
-Eres el asistente de recomendaciones de ModVault.
+Sos un asistente que recomienda mods para un modpack.
 
-El usuario está creando un modpack para:
+DATOS DEL MODPACK:
 
-Juego: ${gameVersion.game.name}
-Versión: ${gameVersion.version}
+Juego:
+${gameId}
+
+Versión del juego:
+${gameVersion.version}
 
 Categoría solicitada:
 ${category.name}
 
-MODS QUE YA TIENE EL USUARIO:
-${JSON.stringify(
-  selectedData,
-  null,
-  2
-)}
+MODS YA SELECCIONADOS:
 
-MODS DISPONIBLES PARA RECOMENDAR:
-${JSON.stringify(
-  candidateData,
-  null,
-  2
-)}
+${JSON.stringify(selectedData, null, 2)}
 
-Tu tarea es seleccionar hasta 5 mods de la lista "MODS DISPONIBLES PARA RECOMENDAR".
+CANDIDATOS DISPONIBLES:
 
-REGLAS:
+${JSON.stringify(candidateData, null, 2)}
 
-1. SOLO puedes recomendar mods que aparezcan en la lista de candidatos.
-2. Utiliza exactamente el id proporcionado por la base de datos.
-3. No inventes nombres ni IDs.
+REGLAS IMPORTANTES:
+
+1. Solo podés recomendar mods que aparezcan en CANDIDATOS DISPONIBLES.
+
+2. No inventes mods.
+
+3. No inventes IDs.
+
 4. No recomiendes mods que ya estén seleccionados.
-5. Evita recomendar un mod si sus incompatibilidades indican que entra en conflicto con alguno de los mods actuales.
-6. Ten en cuenta las dependencias.
-7. Prioriza mods que tengan sentido junto con los mods actuales.
-8. Explica brevemente por qué cada mod podría complementar el modpack.
-9. Si no existe ningún candidato razonable, devuelve una lista vacía.
-10. Devuelve únicamente JSON válido.
+
+5. No recomiendes mods incompatibles con los mods seleccionados.
+
+6. Tené en cuenta las dependencias de los mods.
+
+7. Todos los candidatos ya pertenecen al mismo juego y versión.
+
+8. Si no hay mods seleccionados, igualmente debés analizar los candidatos usando la categoría solicitada.
+
+9. Elegí solamente los candidatos que tengan sentido para la categoría solicitada y que puedan complementar el modpack.
+
+10. Como máximo devolvé 5 sugerencias.
+
+11. El campo "reason" debe explicar al usuario por qué el mod puede ser útil.
+
+12. Nunca coloques IDs internos dentro de "reason".
+
+13. No menciones información técnica interna de la base de datos.
+
+14. La respuesta debe ser únicamente JSON válido.
+
+15. La respuesta debe tener exactamente esta estructura:
+
+{
+  "suggestions": [
+    {
+      "modId": "ID_DEL_MOD",
+      "reason": "Explicación para el usuario"
+    }
+  ]
+}
+
+IMPORTANTE:
+
+Los IDs son únicamente para identificar internamente los mods.
+
+Nunca muestres IDs internos dentro de "reason".
+
+No agregues campos adicionales.
 `;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
+    // --------------------------------------------------
+    // LLAMAR A LOS PROVEEDORES DE IA
+    // --------------------------------------------------
 
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-
-          generationConfig: {
-            responseMimeType:
-              "application/json",
-
-            responseSchema: {
-              type: "OBJECT",
-
-              properties: {
-                suggestions: {
-                  type: "ARRAY",
-
-                  items: {
-                    type: "OBJECT",
-
-                    properties: {
-                      modId: {
-                        type: "STRING",
-                      },
-
-                      reason: {
-                        type: "STRING",
-                      },
-                    },
-
-                    required: [
-                      "modId",
-                      "reason",
-                    ],
-                  },
-                },
-              },
-
-              required: [
-                "suggestions",
-              ],
-            },
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText =
-        await response.text();
-
-      console.error(
-        "Gemini suggestions error:",
-        errorText
-      );
-
-      return NextResponse.json(
-        {
-          error:
-            "No se pudieron generar sugerencias",
-        },
-        {
-          status: 502,
-        }
-      );
-    }
-
-    const geminiData =
-      await response.json();
-
-    const text =
-      geminiData?.candidates?.[0]?.content
-        ?.parts?.[0]?.text;
-
-    if (!text) {
-      return NextResponse.json(
-        {
-          error:
-            "La IA no devolvió sugerencias válidas",
-        },
-        {
-          status: 502,
-        }
-      );
-    }
-
-    let parsed: {
-      suggestions?: Suggestion[];
-    };
+    let aiResult;
 
     try {
-      parsed = JSON.parse(text);
-    } catch {
+      aiResult = await generateSuggestions(prompt);
+    } catch (error) {
       console.error(
-        "JSON inválido de Gemini:",
-        text
+        "Error de todos los proveedores de IA:",
+        error,
       );
 
       return NextResponse.json(
         {
           error:
-            "La IA devolvió una respuesta inválida",
+            "No se pudieron generar sugerencias en este momento. Intentá nuevamente más tarde.",
         },
+        { status: 502 },
+      );
+    }
+
+    console.log(
+      `Sugerencias generadas utilizando ${aiResult.provider}.`,
+    );
+
+    // --------------------------------------------------
+    // PARSEAR RESPUESTA DE LA IA
+    // --------------------------------------------------
+
+    let aiData: AIResponse;
+
+    try {
+      aiData = JSON.parse(aiResult.text);
+    } catch (error) {
+      console.error(
+        `La respuesta de ${aiResult.provider} no es JSON válido:`,
+        aiResult.text,
+        error,
+      );
+
+      return NextResponse.json(
         {
-          status: 502,
+          error:
+            "La IA devolvió una respuesta con un formato inválido.",
+        },
+        { status: 502 },
+      );
+    }
+
+    // --------------------------------------------------
+    // VALIDAR RESPUESTA DE LA IA
+    // --------------------------------------------------
+
+    const rawSuggestions = Array.isArray(
+      aiData?.suggestions,
+    )
+      ? aiData.suggestions
+      : [];
+
+    const validSuggestions = rawSuggestions
+      // -----------------------------------------------
+      // La sugerencia debe tener la estructura correcta
+      // -----------------------------------------------
+      .filter(
+        (
+          suggestion,
+        ): suggestion is AISuggestion =>
+          typeof suggestion?.modId === "string" &&
+          typeof suggestion?.reason === "string",
+      )
+
+      // -----------------------------------------------
+      // El mod debe existir entre los candidatos
+      // -----------------------------------------------
+      .filter((suggestion) =>
+        candidateMap.has(suggestion.modId),
+      )
+
+      // -----------------------------------------------
+      // No puede ser uno ya seleccionado
+      // -----------------------------------------------
+      .filter(
+        (suggestion) =>
+          !selectedSet.has(suggestion.modId),
+      )
+
+      // -----------------------------------------------
+      // Validar incompatibilidades
+      // -----------------------------------------------
+      .filter((suggestion) => {
+        const candidate = candidateMap.get(
+          suggestion.modId,
+        );
+
+        if (!candidate) {
+          return false;
         }
-      );
-    }
 
-    // ==================================================
-    // 9. Validar las sugerencias
-    // ==================================================
+        const candidateIncompatibilities =
+          new Set(
+            candidate.incompatibilities.map(
+              (item) => item.incompatible.id,
+            ),
+          );
 
-    const candidateMap = new Map(
-      candidates.map((mod) => [
-        mod.id,
-        mod,
-      ])
-    );
+        for (const selected of selectedMods) {
+          const selectedIncompatibilities =
+            new Set(
+              selected.incompatibilities.map(
+                (item) => item.incompatible.id,
+              ),
+            );
 
-    const selectedSet = new Set(
-      selectedModIds
-    );
+          // El candidato declara incompatible
+          // al mod seleccionado.
+          if (
+            candidateIncompatibilities.has(
+              selected.id,
+            )
+          ) {
+            return false;
+          }
 
-    const validatedSuggestions: Suggestion[] =
-      [];
+          // El mod seleccionado declara
+          // incompatible al candidato.
+          if (
+            selectedIncompatibilities.has(
+              candidate.id,
+            )
+          ) {
+            return false;
+          }
+        }
 
-    const usedSuggestions = new Set<string>();
+        return true;
+      })
 
-    for (const suggestion of
-      parsed.suggestions ?? []) {
-      if (
-        typeof suggestion.modId !==
-          "string" ||
-        typeof suggestion.reason !==
-          "string"
-      ) {
-        continue;
-      }
+      // -----------------------------------------------
+      // Máximo 5 sugerencias
+      // -----------------------------------------------
+      .slice(0, 5);
 
-      if (
-        usedSuggestions.has(
-          suggestion.modId
-        )
-      ) {
-        continue;
-      }
+    // --------------------------------------------------
+    // FORMATO FINAL PARA EL FRONTEND
+    // --------------------------------------------------
 
-      if (
-        selectedSet.has(
-          suggestion.modId
-        )
-      ) {
-        continue;
-      }
-
-      const candidate =
-        candidateMap.get(
-          suggestion.modId
+    const suggestions = validSuggestions
+      .map((suggestion) => {
+        const mod = candidateMap.get(
+          suggestion.modId,
         );
 
-      if (!candidate) {
-        continue;
-      }
+        if (!mod) {
+          return null;
+        }
 
-      // Evitar candidatos con incompatibilidades
-      // directas hacia los mods seleccionados.
-      const candidateConflicts =
-        [
-          ...candidate.incompatibilities.map(
-            (item) =>
-              item.incompatible.id
+        return {
+          id: mod.id,
+          name: mod.name,
+          version: mod.version,
+          reason: suggestion.reason,
+          categories: mod.categories.map(
+            (item) => item.category.name,
           ),
-
-          ...candidate.incompatibleWith.map(
-            (item) => item.mod.id
-          ),
-        ];
-
-      const conflictsWithSelected =
-        candidateConflicts.some((id) =>
-          selectedSet.has(id)
-        );
-
-      if (conflictsWithSelected) {
-        continue;
-      }
-
-      usedSuggestions.add(
-        suggestion.modId
+        };
+      })
+      .filter(
+        (
+          suggestion,
+        ): suggestion is NonNullable<
+          typeof suggestion
+        > => suggestion !== null,
       );
 
-      validatedSuggestions.push({
-        modId: suggestion.modId,
-        reason:
-          suggestion.reason.trim(),
+    // --------------------------------------------------
+    // NO HAY SUGERENCIAS VÁLIDAS
+    // --------------------------------------------------
+
+    if (suggestions.length === 0) {
+      return NextResponse.json({
+        suggestions: [],
+        message:
+          "No se encontraron otros mods compatibles con el modpack para esta categoría y versión.",
       });
-
-      if (
-        validatedSuggestions.length >=
-        5
-      ) {
-        break;
-      }
     }
 
-    // ==================================================
-    // 10. Devolver información completa
-    // ==================================================
+    // --------------------------------------------------
+    // RESPUESTA
+    // --------------------------------------------------
 
     return NextResponse.json({
-      game: {
-        id: gameVersion.game.id,
-        name: gameVersion.game.name,
-      },
-
-      version: {
-        id: gameVersion.id,
-        version: gameVersion.version,
-      },
-
-      category,
-
-      suggestions:
-        validatedSuggestions.map(
-          (suggestion) => {
-            const mod =
-              candidateMap.get(
-                suggestion.modId
-              )!;
-
-            return {
-              id: mod.id,
-              name: mod.name,
-              version: mod.version,
-              reason:
-                suggestion.reason,
-
-              categories:
-                mod.categories.map(
-                  (item) =>
-                    item.category.name
-                ),
-            };
-          }
-        ),
+      suggestions,
     });
   } catch (error) {
     console.error(
-      "Error generando sugerencias:",
-      error
+      "Error en /api/modpacks/sugestions:",
+      error,
     );
 
     return NextResponse.json(
       {
         error:
-          "Ocurrió un error al generar las sugerencias",
+          "Ocurrió un error al generar las sugerencias.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 },
     );
   }
 }

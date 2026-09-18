@@ -659,7 +659,7 @@ async function confirmDeleteGame() {
                       onClick={() =>
                         handleDeleteGame(game)
                       }
-                      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                      className="rounded-md border border-[#653344] bg-[#351D28] px-4 py-2 text-sm font-medium text-[#E084A0] hover:bg-[#351D28]"
                     >
                       Eliminar juego
                     </button>
@@ -703,7 +703,7 @@ async function confirmDeleteGame() {
                 <button
                   type="button"
                   onClick={confirmDeleteGame}
-                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                  className="rounded-md border border-[#653344] bg-[#351D28] px-4 py-2 text-sm font-medium text-[#E084A0] hover:bg-[#351D28]"
                 >
                   Confirmar
                 </button>
