@@ -177,7 +177,7 @@ export default function ModpackAI({
 
     try {
       const response = await fetch(
-        "/api/modpacks/sugestions",
+        "/api/modpacks/suggestions",
         {
           method: "POST",
           headers: {

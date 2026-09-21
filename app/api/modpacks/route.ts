@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
-import { cookies } from "next/headers";
+import { getSessionFromRequest } from "@/lib/auth";
+import { createModpack } from "@/lib/modpacks";
 
 export async function POST(request: Request) {
   try {
@@ -9,17 +8,14 @@ export async function POST(request: Request) {
     // 1. Verificar autenticación
     // ==================================================
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get("session")?.value;
+    const session = await getSessionFromRequest(request);
 
-    if (!token) {
+    if (!session) {
       return NextResponse.json(
         { error: "No autorizado" },
         { status: 401 }
       );
     }
-
-    const session = await verifyToken(token);
 
     // ==================================================
     // 2. Verificar permisos
@@ -47,56 +43,21 @@ export async function POST(request: Request) {
       isPublic,
       gameId,
       modIds,
+      gameVersionId,
     } = body;
 
-    // ==================================================
-    // 4. Validar nombre
-    // ==================================================
-
-    if (!name || typeof name !== "string") {
+    if (typeof name !== "string") {
       return NextResponse.json(
         { error: "El nombre es obligatorio" },
         { status: 400 }
       );
     }
-
-    const cleanName = name.trim();
-
-    if (!cleanName) {
+    if (typeof gameId !== "string" || typeof modIds === "undefined") {
       return NextResponse.json(
-        { error: "El nombre es obligatorio" },
+        { error: "El juego y los mods son obligatorios" },
         { status: 400 }
       );
     }
-
-    // ==================================================
-    // 5. Validar juego
-    // ==================================================
-
-    if (!gameId || typeof gameId !== "string") {
-      return NextResponse.json(
-        { error: "El juego es obligatorio" },
-        { status: 400 }
-      );
-    }
-
-    const game = await prisma.game.findFirst({
-      where: {
-        id: gameId,
-        deletedAt: null,
-      },
-    });
-
-    if (!game) {
-      return NextResponse.json(
-        { error: "El juego seleccionado no existe" },
-        { status: 400 }
-      );
-    }
-
-    // ==================================================
-    // 6. Validar mods
-    // ==================================================
 
     if (!Array.isArray(modIds)) {
       return NextResponse.json(
@@ -105,68 +66,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // Eliminar IDs duplicados
-    const uniqueModIds = [
-      ...new Set(
-        modIds.filter(
-          (id): id is string => typeof id === "string"
-        )
-      ),
-    ];
+    const stringModIds = modIds.filter(
+      (id): id is string => typeof id === "string"
+    );
 
-    // ==================================================
-    // 7. Comprobar que los mods existen y pertenecen
-    //    al juego seleccionado
-    // ==================================================
-
-    if (uniqueModIds.length > 0) {
-      const mods = await prisma.mod.findMany({
-        where: {
-          id: {
-            in: uniqueModIds,
-          },
-          gameId,
-          status: "APPROVED",
-          deletedAt: null,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      if (mods.length !== uniqueModIds.length) {
-        return NextResponse.json(
-          {
-            error:
-              "Uno o más mods no son válidos para el juego seleccionado",
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    // ==================================================
-    // 8. Crear el modpack
-    // ==================================================
-
-    const newModpack = await prisma.modpack.create({
-      data: {
-        name: cleanName,
-        description:
-          typeof description === "string"
-            ? description.trim() || null
-            : null,
+    const newModpack = await createModpack(
+      {
+        name,
+        description: typeof description === "string" ? description : null,
         isPublic: Boolean(isPublic),
-        userId: session.userId,
         gameId,
-
-        mods: {
-          create: uniqueModIds.map((id) => ({
-            modId: id,
-          })),
-        },
+        gameVersionId: typeof gameVersionId === "string" ? gameVersionId : "",
+        modIds: stringModIds,
       },
-    });
+      session
+    );
 
     // ==================================================
     // 9. Respuesta

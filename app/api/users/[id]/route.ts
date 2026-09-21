@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { getSessionFromRequest } from "@/lib/auth";
 
 
 export async function GET(
@@ -9,6 +10,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const session = await getSessionFromRequest(request);
+
+    if (!session || (session.userId !== id && session.role !== "ADMIN")) {
+      return NextResponse.json(
+        { error: "No tienes permiso para modificar este usuario" },
+        { status: session ? 403 : 401 }
+      );
+    }
 
     const user = await prisma.user.findUnique({
       where: { id },
@@ -53,7 +62,7 @@ export async function GET(
     }
 
     return NextResponse.json({ user });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 }

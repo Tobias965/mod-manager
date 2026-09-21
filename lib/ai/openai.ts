@@ -55,9 +55,20 @@ export async function generateWithOpenAI(
     return data.output_text;
   }
 
-  const text = data?.output
-    ?.flatMap((item: any) => item?.content ?? [])
-    ?.find((item: any) => item?.type === "output_text")
+  const output = Array.isArray(data?.output) ? data.output : [];
+  const text = output
+    .flatMap((item: unknown) => {
+      if (!item || typeof item !== "object") return [];
+      const content = (item as { content?: unknown }).content;
+      return Array.isArray(content) ? content : [];
+    })
+    .find(
+      (item: unknown): item is { type: string; text: string } =>
+        Boolean(item) &&
+        typeof item === "object" &&
+        (item as { type?: unknown }).type === "output_text" &&
+        typeof (item as { text?: unknown }).text === "string"
+    )
     ?.text;
 
   if (!text) {

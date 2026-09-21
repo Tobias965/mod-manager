@@ -30,6 +30,7 @@ export async function GET(request: Request, { params }: RouteProps) {
         fileName: true,
         storageKey: true,
         status: true,
+        deletedAt: true,
       },
     });
 
@@ -52,7 +53,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     // SOLO SE PUEDEN DESCARGAR MODS APROBADOS
     // ==================================================
 
-    if (mod.status !== "APPROVED") {
+    if (mod.status !== "APPROVED" || mod.deletedAt !== null) {
       return NextResponse.json(
         {
           error: "Este mod no está disponible para descarga",

@@ -78,7 +78,7 @@ export default function ModPage() {
         const contentType =
           response.headers.get("content-type") || "";
 
-        let data: any = {};
+        let data: unknown = {};
 
         if (contentType.includes("application/json")) {
           data = await response.json();
@@ -91,12 +91,13 @@ export default function ModPage() {
         }
 
         if (!response.ok) {
+          const errorData = data as { error?: string };
           throw new Error(
-            data.error || "No se pudo cargar el mod."
+            errorData.error || "No se pudo cargar el mod."
           );
         }
 
-        setMod(data);
+        setMod(data as Mod);
       } catch (err) {
         setError(
           err instanceof Error

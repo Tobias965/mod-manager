@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 
 import Link from "next/link";
 
+type ApiResponse = { error?: string; games?: Game[] };
+
 type GameVersion = {
   id: string;
   version: string;
@@ -64,7 +66,7 @@ export default function AdminGamesPage() {
         response.headers.get("content-type") ||
         "";
 
-      let data: any = {};
+      let data: ApiResponse | Game[] = {};
 
       if (contentType.includes("application/json")) {
         data = await response.json();
@@ -79,12 +81,12 @@ export default function AdminGamesPage() {
 
       if (!response.ok) {
         throw new Error(
-          data.error ||
+          (Array.isArray(data) ? "" : data.error) ||
             "No se pudieron cargar los juegos."
         );
       }
 
-      setGames(data);
+      setGames(Array.isArray(data) ? data : data.games ?? []);
     } catch (err) {
       setError(
         err instanceof Error
@@ -97,7 +99,11 @@ export default function AdminGamesPage() {
   }
 
   useEffect(() => {
-    loadGames();
+    const timer = window.setTimeout(() => {
+      void loadGames();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   // ==================================================
@@ -149,7 +155,7 @@ export default function AdminGamesPage() {
         response.headers.get("content-type") ||
         "";
 
-      let data: any = {};
+      let data: ApiResponse = {};
 
       if (contentType.includes("application/json")) {
         data = await response.json();
@@ -236,7 +242,7 @@ export default function AdminGamesPage() {
         response.headers.get("content-type") ||
         "";
 
-      let data: any = {};
+      let data: ApiResponse = {};
 
       if (contentType.includes("application/json")) {
         data = await response.json();
@@ -302,7 +308,7 @@ async function confirmDeleteGame() {
     const contentType =
       response.headers.get("content-type") || "";
 
-    let data: any = {};
+    let data: ApiResponse = {};
 
     if (contentType.includes("application/json")) {
       data = await response.json();
@@ -684,7 +690,7 @@ async function confirmDeleteGame() {
                 id="delete-game-title"
                 className="text-xl font-semibold text-gray-900"
               >
-                ¿Estás seguro de borrar "{gameToDelete.name}"?
+                ¿Estás seguro de borrar &quot;{gameToDelete.name}&quot;?
               </h2>
 
               <p className="mt-3 text-sm text-gray-600">

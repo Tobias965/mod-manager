@@ -1,31 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
+import { getSessionFromRequest } from "@/lib/auth";
 
 // ==================================================
 // AUTENTICACIÓN
 // ==================================================
-
-async function getAuthenticatedUser(req: Request) {
-  const cookieHeader = req.headers.get("cookie");
-
-  const sessionCookie = cookieHeader
-    ?.split(";")
-    .map((cookie) => cookie.trim())
-    .find((cookie) => cookie.startsWith("session="));
-
-  const token = sessionCookie?.split("=")[1];
-
-  if (!token) {
-    return null;
-  }
-
-  try {
-    return await verifyToken(token);
-  } catch {
-    return null;
-  }
-}
 
 // ==================================================
 // GET - BUSCAR MODS APROBADOS
@@ -37,7 +16,7 @@ export async function GET(req: Request) {
     // AUTENTICACIÓN
     // --------------------------------------------------
 
-    const user = await getAuthenticatedUser(req);
+    const user = await getSessionFromRequest(req);
 
     if (!user) {
       return NextResponse.json(
@@ -136,6 +115,8 @@ export async function GET(req: Request) {
         gameId,
 
         gameVersionId,
+
+          deletedAt: null,
 
         ...(search
           ? {

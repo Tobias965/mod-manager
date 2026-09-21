@@ -1,12 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -34,7 +36,7 @@ export default function LoginPage() {
       }
 
       // Refresco completo para enviar cookies y purgar el caché del router
-      window.location.href = "/";
+      router.push("/");
     } catch {
       setError("No se pudo conectar con el servidor");
     } finally {

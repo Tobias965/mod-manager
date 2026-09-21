@@ -21,6 +21,14 @@ function isRecoverableError(error: unknown): boolean {
     return false;
   }
 
+  if (
+    error.provider === "Groq" &&
+    error.status === 400 &&
+    error.message.includes("json_validate_failed")
+  ) {
+    return true;
+  }
+
   return (
     error.status === 429 ||
     error.status === 500 ||

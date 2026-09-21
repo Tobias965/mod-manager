@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
+import { createModpack } from "@/lib/modpacks";
 import { cookies } from "next/headers";
 
 import GameSelect from "@/components/GameSelect";
@@ -56,8 +57,7 @@ export default async function CreateModpackPage({
 
   if (
     session.role !== "CREATOR" &&
-    session.role !== "ADMIN" &&
-    session.role !== "USER"
+    session.role !== "ADMIN"
   ) {
     redirect("/modpacks");
   }
@@ -339,30 +339,17 @@ export default async function CreateModpackPage({
     // Crear modpack
     // ==================================================
 
-    await prisma.modpack.create({
-      data: {
+    await createModpack(
+      {
         name,
-
-        description:
-          description || null,
-
+        description,
         isPublic,
-
-        userId:
-          session.userId,
-
         gameId,
-
-        mods: {
-          create:
-            uniqueModIds.map(
-              (modId) => ({
-                modId,
-              })
-            ),
-        },
+        gameVersionId,
+        modIds: uniqueModIds,
       },
-    });
+      session
+    );
 
     // ==================================================
     // Redirigir

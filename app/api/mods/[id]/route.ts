@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase";
-import { verifyToken } from "@/lib/auth";
+import { getSessionFromRequest } from "@/lib/auth";
 import {
   generateFileHash,
   isValidExternalUrl,
@@ -21,27 +21,6 @@ const FALLBACK_MIMES: Record<string, string> = {
 // ==================================================
 // AUTH
 // ==================================================
-
-async function getAuthenticatedUser(req: Request) {
-  const cookieHeader = req.headers.get("cookie");
-
-  const sessionCookie = cookieHeader
-    ?.split(";")
-    .map((cookie) => cookie.trim())
-    .find((cookie) => cookie.startsWith("session="));
-
-  const token = sessionCookie?.split("=")[1];
-
-  if (!token) {
-    return null;
-  }
-
-  try {
-    return await verifyToken(token);
-  } catch {
-    return null;
-  }
-}
 
 // ==================================================
 // HELPERS
@@ -94,7 +73,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = await getSessionFromRequest(req);
 
     if (!user) {
       return NextResponse.json(
@@ -180,7 +159,7 @@ export async function PUT(
   let uploadedStorageKey: string | null = null;
 
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = await getSessionFromRequest(req);
 
     if (!user) {
       return NextResponse.json(
@@ -671,7 +650,7 @@ export async function PUT(
     // --------------------------------------------------
 
     let finalExternalUrl: string | null;
-    let finalFileData = newFileData;
+    const finalFileData = newFileData;
 
     if (hasNewFile) {
       // Nuevo archivo => deja de ser externo
@@ -872,7 +851,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = await getSessionFromRequest(req);
 
     if (!user) {
       return NextResponse.json(
@@ -940,7 +919,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = await getSessionFromRequest(req);
 
     if (!user) {
       return NextResponse.json(

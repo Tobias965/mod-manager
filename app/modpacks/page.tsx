@@ -5,7 +5,18 @@ import { cookies } from "next/headers";
 
 async function getPublicModpacks() {
   return await prisma.modpack.findMany({
-    where: { isPublic: true },
+    where: {
+      isPublic: true,
+      game: { deletedAt: null },
+      mods: {
+        every: {
+          mod: {
+            deletedAt: null,
+            status: "APPROVED",
+          },
+        },
+      },
+    },
     include: {
       user: {
         select: { email: true },
@@ -44,7 +55,7 @@ export default async function ModpacksPage() {
   const modpacks = await getPublicModpacks();
 
   const isAuthenticated = Boolean(user);
-  const canCreate = user?.role === "CREATOR" || user?.role === "ADMIN" || user?.role === "USER";
+  const canCreate = user?.role === "CREATOR" || user?.role === "ADMIN";
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">

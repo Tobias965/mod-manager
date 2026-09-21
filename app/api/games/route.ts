@@ -4,8 +4,16 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     const games = await prisma.game.findMany({
+      where: {
+        deletedAt: null,
+      },
       include: {
-        mods: true,
+        mods: {
+          where: {
+            status: "APPROVED",
+            deletedAt: null,
+          },
+        },
       },
       orderBy: {
         name: "asc",

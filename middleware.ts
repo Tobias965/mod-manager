@@ -45,9 +45,8 @@ export async function middleware(request: NextRequest) {
 
   // 4. Verificación de permisos y roles
   try {
-    const user: any = await verifyToken(token);
-    const rawRole = user?.role || user?.user?.role || user?.payload?.role;
-    const userRole = typeof rawRole === "string" ? rawRole.toUpperCase() : null;
+    const user = await verifyToken(token);
+    const userRole = user.role;
 
     if (isAdminRoute && userRole !== "ADMIN") {
       console.warn(`⚠️ ACCESO DENEGADO: ${pathname} requiere ADMIN. Rol actual: "${userRole}"`);

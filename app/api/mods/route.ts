@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
+import { getSessionFromRequest } from "@/lib/auth";
 import {
   generateFileHash,
   isValidExternalUrl,
@@ -25,27 +25,6 @@ const FALLBACK_MIMES: Record<string, string> = {
 // ==================================================
 // AUTH
 // ==================================================
-
-async function getAuthenticatedUser(req: Request) {
-  const cookieHeader = req.headers.get("cookie");
-
-  const sessionCookie = cookieHeader
-    ?.split(";")
-    .map((cookie) => cookie.trim())
-    .find((cookie) => cookie.startsWith("session="));
-
-  const token = sessionCookie?.split("=")[1];
-
-  if (!token) {
-    return null;
-  }
-
-  try {
-    return await verifyToken(token);
-  } catch {
-    return null;
-  }
-}
 
 // ==================================================
 // HELPERS
@@ -109,7 +88,7 @@ function getFileExtension(fileName: string): string {
 
 export async function GET(req: Request) {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = await getSessionFromRequest(req);
 
     const games = await prisma.game.findMany({
       where: {
@@ -184,7 +163,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = await getSessionFromRequest(req);
 
     if (!user) {
       return NextResponse.json(

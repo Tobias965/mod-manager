@@ -412,7 +412,7 @@ export default function ManageModsPage() {
                 <p className="mt-1 text-sm text-gray-500">
                   ¿Estás seguro de enviar{" "}
                   <span className="font-semibold text-gray-700">
-                    "{modToDelete.name}"
+                    &quot;{modToDelete.name}&quot;
                   </span>{" "}
                   a la papelera? Las relaciones de dependencias se mantendrán intactas.
                 </p>

@@ -12,6 +12,11 @@ const encodedKey = new TextEncoder().encode(secretKey);
 
 export type UserRole = "USER" | "CREATOR" | "ADMIN";
 
+export type Session = {
+  userId: string;
+  role: UserRole;
+};
+
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
@@ -39,10 +44,7 @@ export async function createToken(
 
 export async function verifyToken(
   token: string
-): Promise<{
-  userId: string;
-  role: "USER" | "CREATOR" | "ADMIN";
-}> {
+): Promise<Session> {
   const { payload } = await jwtVerify(
     token,
     encodedKey
@@ -66,15 +68,41 @@ export async function verifyToken(
   };
 }
 
-export async function getSession(): Promise<{ userId: string; role: UserRole } | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value; // Cambia "token" por el nombre exacto de tu cookie
+export async function getSessionFromRequest(
+  request: Request
+): Promise<Session | null> {
+  const cookieHeader = request.headers.get("cookie");
+  const token = cookieHeader
+    ?.split(";")
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith("session="))
+    ?.slice("session=".length);
 
   if (!token) return null;
 
   try {
     return await verifyToken(token);
-  } catch (error) {
+  } catch {
+    return null;
+  }
+}
+
+export function hasRole(
+  session: Session | null,
+  roles: readonly UserRole[]
+): boolean {
+  return session !== null && roles.includes(session.role);
+}
+
+export async function getSession(): Promise<Session | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+
+  if (!token) return null;
+
+  try {
+    return await verifyToken(token);
+  } catch {
     return null;
   }
 }

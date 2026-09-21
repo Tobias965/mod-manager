@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
+import { getSessionFromRequest } from "@/lib/auth";
 import { generateSuggestions } from "@/lib/ai/suggestions";
 
 type AISuggestion = {
@@ -20,24 +18,12 @@ export async function POST(req: Request) {
     // AUTENTICACIÓN
     // --------------------------------------------------
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get("session")?.value;
-
-    if (!token) {
-      return NextResponse.json(
-        {
-          error: "No autenticado",
-        },
-        { status: 401 },
-      );
-    }
-
-    const user = await verifyToken(token);
+    const user = await getSessionFromRequest(req);
 
     if (!user) {
       return NextResponse.json(
         {
-          error: "Sesión inválida",
+          error: "No autenticado",
         },
         { status: 401 },
       );
@@ -612,7 +598,7 @@ No agregues campos adicionales.
     });
   } catch (error) {
     console.error(
-      "Error en /api/modpacks/sugestions:",
+      "Error en /api/modpacks/suggestions:",
       error,
     );
 
