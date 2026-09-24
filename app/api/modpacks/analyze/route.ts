@@ -146,6 +146,13 @@ export async function POST(request: Request) {
 
     const selectedIds = new Set(modIds);
 
+    const modNamesMap = new Map<string, string>();
+    mods.forEach((mod) => {
+      modNamesMap.set(mod.id, mod.name);
+      mod.dependencies.forEach((dep) => modNamesMap.set(dep.dependencyId, dep.dependency.name));
+      mod.incompatibilities.forEach((inc) => modNamesMap.set(inc.incompatibleId, inc.incompatible.name));
+    });
+
     // 2. MAPEAR NOMBRES EN DEPENDENCIAS FALTANTES
     const missingDependencies = mods.flatMap((mod) =>
       mod.dependencies
@@ -189,6 +196,18 @@ Incompatibilidades detectadas: ${JSON.stringify(incompatibilities)}`;
 
     const result = await generateAnalysis(prompt);
     const report = parseReport(result.text);
+
+    const replaceIdsWithNames = (text: string) => {
+      const uuidRegex = /(?:con ID\s*|ID\s*)?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/gi;
+      return text.replace(uuidRegex, (match, uuid) => {
+        const name = modNamesMap.get(uuid);
+        return name ? `'${name}'` : match; 
+      });
+    };
+
+    report.summary = replaceIdsWithNames(report.summary);
+    report.warnings = report.warnings.map(replaceIdsWithNames);
+    report.recommendations = report.recommendations.map(replaceIdsWithNames);
 
     return NextResponse.json({
       report: {
