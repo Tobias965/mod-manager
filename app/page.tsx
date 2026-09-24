@@ -1,6 +1,7 @@
 import Link from "next/link";
-
 import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 
 // ==================================================
 // PÁGINA PRINCIPAL
@@ -26,9 +27,7 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen bg-gray-100 px-6 py-10">
       <div className="mx-auto max-w-6xl">
-
         {/* CABECERA */}
-
         <div className="mb-10">
           <h1 className="text-4xl font-bold text-gray-900">
             Mod Manager
@@ -40,7 +39,6 @@ export default async function HomePage() {
         </div>
 
         {/* SIN JUEGOS */}
-
         {games.length === 0 ? (
           <div className="rounded-lg bg-white p-8 text-center shadow">
             <p className="text-gray-600">
@@ -48,18 +46,14 @@ export default async function HomePage() {
             </p>
           </div>
         ) : (
-
           /* JUEGOS */
-
           <div className="space-y-6">
             {games.map((game) => (
               <section
                 key={game.id}
                 className="rounded-lg bg-white p-6 shadow-md"
               >
-
                 {/* JUEGO */}
-
                 <div className="mb-5">
                   <h2 className="text-2xl font-bold text-gray-900">
                     {game.name}
@@ -74,7 +68,6 @@ export default async function HomePage() {
                 </div>
 
                 {/* VERSIONES */}
-
                 {game.versions.length === 0 ? (
                   <p className="text-sm text-gray-500">
                     Este juego no tiene versiones registradas.
@@ -106,12 +99,10 @@ export default async function HomePage() {
                     </div>
                   </details>
                 )}
-
               </section>
             ))}
           </div>
         )}
-
       </div>
     </main>
   );
