@@ -326,79 +326,44 @@ export async function POST(req: Request) {
     }));
 
     // --------------------------------------------------
-    // PROMPT
+    // PROMPT (ACTUALIZADO PARA EVITAR CONFUSIÓN DE IDs)
     // --------------------------------------------------
 
     const prompt = `
 Sos un asistente que recomienda mods para un modpack.
 
 DATOS DEL MODPACK:
-
-Juego:
-${gameId}
-
-Versión del juego:
-${gameVersion.version}
-
-Categoría solicitada:
-${category.name}
+Juego: ${gameId}
+Versión del juego: ${gameVersion.version}
+Categoría solicitada: ${category.name}
 
 MODS YA SELECCIONADOS:
-
 ${JSON.stringify(selectedData, null, 2)}
 
 CANDIDATOS DISPONIBLES:
-
 ${JSON.stringify(candidateData, null, 2)}
 
 REGLAS IMPORTANTES:
-
 1. Solo podés recomendar mods que aparezcan en CANDIDATOS DISPONIBLES.
+2. No inventes mods, no inventes IDs.
+3. No recomiendes mods que ya estén seleccionados.
+4. No recomiendes mods incompatibles con los mods seleccionados (revisá las dependencias e incompatibilidades).
+5. Elegí solamente los candidatos que tengan sentido para la categoría solicitada y que puedan complementar el modpack.
+6. Como máximo devolvé 5 sugerencias.
+7. El campo "reason" debe explicar al usuario por qué el mod puede ser útil, usando el NOMBRE del mod.
+8. NUNCA coloques IDs internos dentro de "reason".
+9. REGLA CRÍTICA: En el campo "modId" DEBÉS colocar EXACTAMENTE el valor del campo "id" (el UUID largo) que aparece en el JSON de CANDIDATOS DISPONIBLES. Si no usas el "id" exacto, el sistema fallará.
+10. La respuesta debe ser únicamente JSON válido, sin bloques de código markdown (no uses \`\`\`json).
 
-2. No inventes mods.
-
-3. No inventes IDs.
-
-4. No recomiendes mods que ya estén seleccionados.
-
-5. No recomiendes mods incompatibles con los mods seleccionados.
-
-6. Tené en cuenta las dependencias de los mods.
-
-7. Todos los candidatos ya pertenecen al mismo juego y versión.
-
-8. Si no hay mods seleccionados, igualmente debés analizar los candidatos usando la categoría solicitada.
-
-9. Elegí solamente los candidatos que tengan sentido para la categoría solicitada y que puedan complementar el modpack.
-
-10. Como máximo devolvé 5 sugerencias.
-
-11. El campo "reason" debe explicar al usuario por qué el mod puede ser útil.
-
-12. Nunca coloques IDs internos dentro de "reason".
-
-13. No menciones información técnica interna de la base de datos.
-
-14. La respuesta debe ser únicamente JSON válido.
-
-15. La respuesta debe tener exactamente esta estructura:
-
+Estructura obligatoria:
 {
   "suggestions": [
     {
-      "modId": "ID_DEL_MOD",
-      "reason": "Explicación para el usuario"
+      "modId": "EL_UUID_EXACTO_DEL_CANDIDATO",
+      "reason": "Explicación usando solo nombres legibles"
     }
   ]
 }
-
-IMPORTANTE:
-
-Los IDs son únicamente para identificar internamente los mods.
-
-Nunca muestres IDs internos dentro de "reason".
-
-No agregues campos adicionales.
 `;
 
     // --------------------------------------------------
@@ -410,44 +375,36 @@ No agregues campos adicionales.
     try {
       aiResult = await generateSuggestions(prompt);
     } catch (error) {
-      console.error(
-        "Error de todos los proveedores de IA:",
-        error,
-      );
-
+      console.error("Error de todos los proveedores de IA:", error);
       return NextResponse.json(
-        {
-          error:
-            "No se pudieron generar sugerencias en este momento. Intentá nuevamente más tarde.",
-        },
+        { error: "No se pudieron generar sugerencias en este momento. Intentá nuevamente más tarde." },
         { status: 502 },
       );
     }
 
-    console.log(
-      `Sugerencias generadas utilizando ${aiResult.provider}.`,
-    );
+    console.log(`Sugerencias generadas utilizando ${aiResult.provider}.`);
 
     // --------------------------------------------------
-    // PARSEAR RESPUESTA DE LA IA
+    // LIMPIAR Y PARSEAR RESPUESTA DE LA IA
     // --------------------------------------------------
 
     let aiData: AIResponse;
 
     try {
-      aiData = JSON.parse(aiResult.text);
-    } catch (error) {
-      console.error(
-        `La respuesta de ${aiResult.provider} no es JSON válido:`,
-        aiResult.text,
-        error,
-      );
+      // FIX: Limpiamos los bloques de markdown que las IAs suelen agregar rebeldes.
+      const cleanJsonText = aiResult.text
+        .replace(/```json\n?/gi, "")
+        .replace(/```/gi, "")
+        .trim();
+        
+      // DEBUG: Muestra exactamente qué devolvió la IA antes del filtro
+      console.log("=== RAW AI TEXT ===", cleanJsonText);
 
+      aiData = JSON.parse(cleanJsonText);
+    } catch (error) {
+      console.error(`La respuesta de ${aiResult.provider} no es JSON válido:`, aiResult.text, error);
       return NextResponse.json(
-        {
-          error:
-            "La IA devolvió una respuesta con un formato inválido.",
-        },
+        { error: "La IA devolvió una respuesta con un formato inválido." },
         { status: 502 },
       );
     }
@@ -456,94 +413,45 @@ No agregues campos adicionales.
     // VALIDAR RESPUESTA DE LA IA
     // --------------------------------------------------
 
-    const rawSuggestions = Array.isArray(
-      aiData?.suggestions,
-    )
-      ? aiData.suggestions
-      : [];
+    const rawSuggestions = Array.isArray(aiData?.suggestions) ? aiData.suggestions : [];
 
     const validSuggestions = rawSuggestions
-      // -----------------------------------------------
-      // La sugerencia debe tener la estructura correcta
-      // -----------------------------------------------
-      .filter(
-        (
-          suggestion,
-        ): suggestion is AISuggestion =>
-          typeof suggestion?.modId === "string" &&
-          typeof suggestion?.reason === "string",
-      )
-
-      // -----------------------------------------------
-      // El mod debe existir entre los candidatos
-      // -----------------------------------------------
-      .filter((suggestion) =>
-        candidateMap.has(suggestion.modId),
-      )
-
-      // -----------------------------------------------
-      // No puede ser uno ya seleccionado
-      // -----------------------------------------------
-      .filter(
-        (suggestion) =>
-          !selectedSet.has(suggestion.modId),
-      )
-
-      // -----------------------------------------------
-      // Validar incompatibilidades
-      // -----------------------------------------------
+      .filter((suggestion): suggestion is AISuggestion => {
+        const isValidStructure = typeof suggestion?.modId === "string" && typeof suggestion?.reason === "string";
+        if (!isValidStructure) console.log("Filtro: Estructura inválida", suggestion);
+        return isValidStructure;
+      })
       .filter((suggestion) => {
-        const candidate = candidateMap.get(
-          suggestion.modId,
-        );
+        const exists = candidateMap.has(suggestion.modId);
+        // DEBUG: Si esto imprime false, la IA puso un Nombre en vez del UUID.
+        if (!exists) console.log("Filtro: modId no existe en candidateMap:", suggestion.modId);
+        return exists;
+      })
+      .filter((suggestion) => {
+        const notSelected = !selectedSet.has(suggestion.modId);
+        if (!notSelected) console.log("Filtro: El mod ya estaba seleccionado:", suggestion.modId);
+        return notSelected;
+      })
+      .filter((suggestion) => {
+        const candidate = candidateMap.get(suggestion.modId);
+        if (!candidate) return false;
 
-        if (!candidate) {
-          return false;
-        }
-
-        const candidateIncompatibilities =
-          new Set(
-            candidate.incompatibilities.map(
-              (item) => item.incompatible.id,
-            ),
-          );
+        const candidateIncompatibilities = new Set(candidate.incompatibilities.map((item) => item.incompatible.id));
 
         for (const selected of selectedMods) {
-          const selectedIncompatibilities =
-            new Set(
-              selected.incompatibilities.map(
-                (item) => item.incompatible.id,
-              ),
-            );
+          const selectedIncompatibilities = new Set(selected.incompatibilities.map((item) => item.incompatible.id));
 
-          // El candidato declara incompatible
-          // al mod seleccionado.
-          if (
-            candidateIncompatibilities.has(
-              selected.id,
-            )
-          ) {
-            return false;
-          }
-
-          // El mod seleccionado declara
-          // incompatible al candidato.
-          if (
-            selectedIncompatibilities.has(
-              candidate.id,
-            )
-          ) {
+          if (candidateIncompatibilities.has(selected.id) || selectedIncompatibilities.has(candidate.id)) {
+            console.log("Filtro: Incompatibilidad detectada entre", candidate.name, "y", selected.name);
             return false;
           }
         }
-
         return true;
       })
-
-      // -----------------------------------------------
-      // Máximo 5 sugerencias
-      // -----------------------------------------------
       .slice(0, 5);
+
+    // DEBUG: Verifica cuántas pasaron tus filtros
+    console.log("=== SUGERENCIAS QUE PASARON LOS FILTROS ===", validSuggestions);
 
     // --------------------------------------------------
     // FORMATO FINAL PARA EL FRONTEND
@@ -551,62 +459,31 @@ No agregues campos adicionales.
 
     const suggestions = validSuggestions
       .map((suggestion) => {
-        const mod = candidateMap.get(
-          suggestion.modId,
-        );
-
-        if (!mod) {
-          return null;
-        }
+        const mod = candidateMap.get(suggestion.modId);
+        if (!mod) return null;
 
         return {
           id: mod.id,
           name: mod.name,
           version: mod.version,
           reason: suggestion.reason,
-          categories: mod.categories.map(
-            (item) => item.category.name,
-          ),
+          categories: mod.categories.map((item) => item.category.name),
         };
       })
-      .filter(
-        (
-          suggestion,
-        ): suggestion is NonNullable<
-          typeof suggestion
-        > => suggestion !== null,
-      );
-
-    // --------------------------------------------------
-    // NO HAY SUGERENCIAS VÁLIDAS
-    // --------------------------------------------------
+      .filter((suggestion): suggestion is NonNullable<typeof suggestion> => suggestion !== null);
 
     if (suggestions.length === 0) {
       return NextResponse.json({
         suggestions: [],
-        message:
-          "No se encontraron otros mods compatibles con el modpack para esta categoría y versión.",
+        message: "No se encontraron otros mods compatibles con el modpack para esta categoría y versión.",
       });
     }
 
-    // --------------------------------------------------
-    // RESPUESTA
-    // --------------------------------------------------
-
-    return NextResponse.json({
-      suggestions,
-    });
+    return NextResponse.json({ suggestions });
   } catch (error) {
-    console.error(
-      "Error en /api/modpacks/suggestions:",
-      error,
-    );
-
+    console.error("Error en /api/modpacks/suggestions:", error);
     return NextResponse.json(
-      {
-        error:
-          "Ocurrió un error al generar las sugerencias.",
-      },
+      { error: "Ocurrió un error al generar las sugerencias." },
       { status: 500 },
     );
   }

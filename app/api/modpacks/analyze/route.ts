@@ -10,12 +10,16 @@ type AnalysisReport = {
   warnings: string[];
   missingDependencies: Array<{
     modId: string;
+    modName?: string;
     dependencyId: string;
+    dependencyName?: string;
     reason: string;
   }>;
   incompatibilities: Array<{
     modAId: string;
+    modAName?: string;
     modBId: string;
+    modBName?: string;
     reason: string;
   }>;
   recommendations: string[];
@@ -95,6 +99,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 1. OBTENER MODS E INCLUIR NOMBRES DE DEPENDENCIAS E INCOMPATIBILIDADES
     const mods = await prisma.mod.findMany({
       where: {
         id: { in: modIds },
@@ -107,8 +112,28 @@ export async function POST(request: Request) {
         id: true,
         name: true,
         version: true,
-        dependencies: { select: { dependencyId: true } },
-        incompatibilities: { select: { incompatibleId: true } },
+        dependencies: {
+          select: {
+            dependencyId: true,
+            dependency: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+        incompatibilities: {
+          select: {
+            incompatibleId: true,
+            incompatible: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -120,34 +145,47 @@ export async function POST(request: Request) {
     }
 
     const selectedIds = new Set(modIds);
+
+    // 2. MAPEAR NOMBRES EN DEPENDENCIAS FALTANTES
     const missingDependencies = mods.flatMap((mod) =>
       mod.dependencies
         .filter((dependency) => !selectedIds.has(dependency.dependencyId))
         .map((dependency) => ({
           modId: mod.id,
+          modName: mod.name,
           dependencyId: dependency.dependencyId,
-          reason: `${mod.name} requiere otro mod que no está seleccionado.`,
+          dependencyName: dependency.dependency.name,
+          reason: `El mod "${mod.name}" requiere el mod "${dependency.dependency.name}", pero no está seleccionado.`,
         }))
     );
+
+    // 3. MAPEAR NOMBRES EN INCOMPATIBILIDADES
     const incompatibilities = mods.flatMap((mod) =>
       mod.incompatibilities
         .filter((incompatibility) => selectedIds.has(incompatibility.incompatibleId))
         .map((incompatibility) => ({
           modAId: mod.id,
+          modAName: mod.name,
           modBId: incompatibility.incompatibleId,
-          reason: `${mod.name} es incompatible con otro mod seleccionado.`,
+          modBName: incompatibility.incompatible.name,
+          reason: `El mod "${mod.name}" es incompatible con "${incompatibility.incompatible.name}".`,
         }))
     );
 
-    const prompt = `Analiza este modpack. Debes responder únicamente con un objeto JSON válido, sin markdown, sin texto adicional y sin bloques de código. La respuesta debe cumplir exactamente esta estructura:
-{"summary":"string","compatible":true,"warnings":["string"],"missingDependencies":[{"modId":"string","dependencyId":"string","reason":"string"}],"incompatibilities":[{"modAId":"string","modBId":"string","reason":"string"}],"recommendations":["string"]}
+    // 4. PROMPT CON REGLAS DE NOMBRES HUMANOS
+    const prompt = `Analiza este modpack. Debes responder únicamente con un objeto JSON válido, sin markdown, sin texto adicional y sin bloques de código.
+La respuesta debe cumplir exactamente esta estructura:
+{"summary":"string","compatible":true,"warnings":["string"],"missingDependencies":[{"modId":"string","modName":"string","dependencyId":"string","dependencyName":"string","reason":"string"}],"incompatibilities":[{"modAId":"string","modAName":"string","modBId":"string","modBName":"string","reason":"string"}],"recommendations":["string"]}
+
+REGLA CRÍTICA: En los textos narrativos (summary, warnings, recommendations, reason), utiliza SIEMPRE los nombres legibles de los mods (ejemplo: "Photo Realistic Mode", "Graphics API"). Queda ESTRICTAMENTE PROHIBIDO mostrar o mencionar UUIDs o IDs en las explicaciones.
 
 Juego: ${gameVersion.game.name}
 Versión: ${gameVersion.version}
-Mods seleccionados: ${JSON.stringify(mods)}
+Mods seleccionados: ${JSON.stringify(
+      mods.map((m) => ({ id: m.id, name: m.name, version: m.version }))
+    )}
 Dependencias faltantes detectadas: ${JSON.stringify(missingDependencies)}
-Incompatibilidades detectadas: ${JSON.stringify(incompatibilities)}
-No inventes IDs y conserva únicamente IDs incluidos en los datos.`;
+Incompatibilidades detectadas: ${JSON.stringify(incompatibilities)}`;
 
     const result = await generateAnalysis(prompt);
     const report = parseReport(result.text);
@@ -157,7 +195,10 @@ No inventes IDs y conserva únicamente IDs incluidos en los datos.`;
         ...report,
         missingDependencies,
         incompatibilities,
-        compatible: missingDependencies.length === 0 && incompatibilities.length === 0 && report.compatible,
+        compatible:
+          missingDependencies.length === 0 &&
+          incompatibilities.length === 0 &&
+          report.compatible,
       },
       provider: result.provider,
     });
