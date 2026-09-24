@@ -252,11 +252,10 @@ export async function POST(req: Request) {
     // --------------------------------------------------
 
     if (candidates.length === 0) {
-      return NextResponse.json({
-        suggestions: [],
-        message:
-          "No hay otros mods aprobados disponibles en esta categoría para la versión seleccionada.",
-      });
+      return NextResponse.json(
+        { error: "No hay mods con esa categoría." },
+        { status: 404 }
+      );
     }
 
     // --------------------------------------------------
@@ -473,10 +472,10 @@ Estructura obligatoria:
       .filter((suggestion): suggestion is NonNullable<typeof suggestion> => suggestion !== null);
 
     if (suggestions.length === 0) {
-      return NextResponse.json({
-        suggestions: [],
-        message: "No se encontraron otros mods compatibles con el modpack para esta categoría y versión.",
-      });
+      return NextResponse.json(
+        { error: "No hay mods con esa categoría compatibles con tu modpack." },
+        { status: 404 }  
+      );
     }
 
     return NextResponse.json({ suggestions });
