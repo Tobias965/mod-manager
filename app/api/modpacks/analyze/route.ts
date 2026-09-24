@@ -99,7 +99,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. OBTENER MODS CON DEPENDENCIAS E INCOMPATIBILIDADES
+    // 1. OBTENER MODS Y SUS RELACIONES
     const mods = await prisma.mod.findMany({
       where: {
         id: { in: modIds },
@@ -146,6 +146,18 @@ export async function POST(request: Request) {
 
     const selectedIds = new Set(modIds);
 
+    // DICCIONARIO PARA MAPEAR CUALQUIER UUID A SU NOMBRE CORRESPONDIENTE
+    const modNamesMap = new Map<string, string>();
+    mods.forEach((mod) => {
+      modNamesMap.set(mod.id, mod.name);
+      mod.dependencies.forEach((dep) => {
+        if (dep.dependency) modNamesMap.set(dep.dependencyId, dep.dependency.name);
+      });
+      mod.incompatibilities.forEach((inc) => {
+        if (inc.incompatible) modNamesMap.set(inc.incompatibleId, inc.incompatible.name);
+      });
+    });
+
     // 2. MAPEAR DEPENDENCIAS FALTANTES
     const missingDependencies = mods.flatMap((mod) =>
       mod.dependencies
@@ -154,8 +166,8 @@ export async function POST(request: Request) {
           modId: mod.id,
           modName: mod.name,
           dependencyId: dependency.dependencyId,
-          dependencyName: dependency.dependency.name,
-          reason: `El mod "${mod.name}" requiere el mod "${dependency.dependency.name}", pero no está seleccionado.`,
+          dependencyName: dependency.dependency?.name ?? "Mod requerido",
+          reason: `El mod "${mod.name}" requiere el mod "${dependency.dependency?.name ?? "desconocido"}", pero no está seleccionado.`,
         }))
     );
 
@@ -167,62 +179,68 @@ export async function POST(request: Request) {
           modAId: mod.id,
           modAName: mod.name,
           modBId: incompatibility.incompatibleId,
-          modBName: incompatibility.incompatible.name,
-          reason: `El mod "${mod.name}" es incompatible con "${incompatibility.incompatible.name}".`,
+          modBName: incompatibility.incompatible?.name ?? "Mod incompatible",
+          reason: `El mod "${mod.name}" es incompatible con "${incompatibility.incompatible?.name ?? "desconocido"}".`,
         }))
     );
 
-    // 4. PREPARAR DATOS SANITIZADOS PARA LA IA (SIN UUIDs)
-    const modsForAi = mods.map((m) => ({
-      name: m.name,
-      version: m.version,
-    }));
-
-    const missingDependenciesForAi = missingDependencies.map((d) => ({
-      modName: d.modName,
-      missingDependencyName: d.dependencyName,
-      reason: d.reason,
-    }));
-
-    const incompatibilitiesForAi = incompatibilities.map((i) => ({
-      modAName: i.modAName,
-      modBName: i.modBName,
-      reason: i.reason,
-    }));
-
-    const prompt = `Analiza este modpack. Debes responder únicamente con un objeto JSON válido, sin markdown, sin texto adicional y sin bloques de código.
-La respuesta debe cumplir exactamente esta estructura:
-{"summary":"string","compatible":true,"warnings":["string"],"recommendations":["string"]}
-
-REGLA ABSOLUTA: Utiliza ÚNICAMENTE los nombres legibles de los mods provistos en los datos. Queda estrictamente prohibido mostrar o inventar códigos o IDs.
-
-Juego: ${gameVersion.game.name}
-Versión: ${gameVersion.version}
-Mods seleccionados: ${JSON.stringify(modsForAi)}
-Dependencias faltantes detectadas: ${JSON.stringify(missingDependenciesForAi)}
-Incompatibilidades detectadas: ${JSON.stringify(incompatibilitiesForAi)}`;
-
-    const result = await generateAnalysis(prompt);
-    const report = parseReport(result.text);
-
-    // 5. GENERAR RECOMENDACIONES DETERMINISTAS EN TYPESCRIPT
+    // 4. GENERAR RECOMENDACIONES PRECISAS DIRECTAMENTE DESDE EL BACKEND
     const exactRecommendations: string[] = [
       ...missingDependencies.map(
         (d) => `Añadir el mod "${d.dependencyName}" para completar la configuración de "${d.modName}".`
       ),
       ...incompatibilities.map(
-        (i) => `Remover "${i.modAName}" o "${i.modBName}" para resolver la incompatibilidad entre ellos.`
+        (i) => `Remover "${i.modAName}" o "${i.modBName}" para resolver la incompatibilidad.`
       ),
     ];
 
-    // Combinar las recomendaciones automáticas de TypeScript con sugerencias extras de la IA si existen
-    const finalRecommendations = Array.from(
-      new Set([...exactRecommendations, ...report.recommendations])
-    );
+    // 5. SANITIZADOR PARA REEMPLAZAR O ELIMINAR CUALQUIER UUID REZAGADO
+    const cleanText = (text: string): string => {
+      if (!text) return text;
+      const uuidRegex = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
+      let cleaned = text.replace(uuidRegex, (uuid) => {
+        const name = modNamesMap.get(uuid);
+        return name ? `"${name}"` : "el mod";
+      });
+      return cleaned.replace(/\bcon (el )?ID\b\s*/gi, "").replace(/\s+/g, " ").trim();
+    };
+
+    // DATOS SANITIZADOS PARA LA IA
+    const modsForAi = mods.map((m) => ({ name: m.name, version: m.version }));
+    const missingDependenciesForAi = missingDependencies.map((d) => ({
+      modName: d.modName,
+      missingDependencyName: d.dependencyName,
+    }));
+    const incompatibilitiesForAi = incompatibilities.map((i) => ({
+      modAName: i.modAName,
+      modBName: i.modBName,
+    }));
+
+    const prompt = `Analiza este modpack. Responde únicamente con un JSON válido.
+Estructura esperada:
+{"summary":"string","compatible":true,"warnings":["string"],"recommendations":["string"]}
+
+REGLA CRÍTICA: Mención de IDs o UUIDs está PROHIBIDA. Usa solo los nombres de los mods.
+
+Juego: ${gameVersion.game.name}
+Versión: ${gameVersion.version}
+Mods seleccionados: ${JSON.stringify(modsForAi)}
+Dependencias faltantes: ${JSON.stringify(missingDependenciesForAi)}
+Incompatividades: ${JSON.stringify(incompatibilitiesForAi)}`;
+
+    const result = await generateAnalysis(prompt);
+    const report = parseReport(result.text);
+
+    // Si existen problemas de dependencias o incompatibilidades, usamos las recomendaciones exactas del backend.
+    // Si no los hay, usamos las de la IA pasadas por el filtro sanitizador.
+    const finalRecommendations = exactRecommendations.length > 0
+      ? exactRecommendations
+      : report.recommendations.map(cleanText).filter(Boolean);
 
     return NextResponse.json({
       report: {
-        ...report,
+        summary: cleanText(report.summary),
+        warnings: report.warnings.map(cleanText),
         recommendations: finalRecommendations,
         missingDependencies,
         incompatibilities,
