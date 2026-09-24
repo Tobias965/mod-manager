@@ -99,7 +99,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. OBTENER MODS E INCLUIR NOMBRES DE DEPENDENCIAS E INCOMPATIBILIDADES
+    // 1. OBTENER MODS CON DEPENDENCIAS E INCOMPATIBILIDADES
     const mods = await prisma.mod.findMany({
       where: {
         id: { in: modIds },
@@ -146,14 +146,7 @@ export async function POST(request: Request) {
 
     const selectedIds = new Set(modIds);
 
-    const modNamesMap = new Map<string, string>();
-    mods.forEach((mod) => {
-      modNamesMap.set(mod.id, mod.name);
-      mod.dependencies.forEach((dep) => modNamesMap.set(dep.dependencyId, dep.dependency.name));
-      mod.incompatibilities.forEach((inc) => modNamesMap.set(inc.incompatibleId, inc.incompatible.name));
-    });
-
-    // 2. MAPEAR NOMBRES EN DEPENDENCIAS FALTANTES
+    // 2. MAPEAR DEPENDENCIAS FALTANTES
     const missingDependencies = mods.flatMap((mod) =>
       mod.dependencies
         .filter((dependency) => !selectedIds.has(dependency.dependencyId))
@@ -166,7 +159,7 @@ export async function POST(request: Request) {
         }))
     );
 
-    // 3. MAPEAR NOMBRES EN INCOMPATIBILIDADES
+    // 3. MAPEAR INCOMPATIBILIDADES
     const incompatibilities = mods.flatMap((mod) =>
       mod.incompatibilities
         .filter((incompatibility) => selectedIds.has(incompatibility.incompatibleId))
@@ -179,39 +172,58 @@ export async function POST(request: Request) {
         }))
     );
 
-    // 4. PROMPT CON REGLAS DE NOMBRES HUMANOS
+    // 4. PREPARAR DATOS SANITIZADOS PARA LA IA (SIN UUIDs)
+    const modsForAi = mods.map((m) => ({
+      name: m.name,
+      version: m.version,
+    }));
+
+    const missingDependenciesForAi = missingDependencies.map((d) => ({
+      modName: d.modName,
+      missingDependencyName: d.dependencyName,
+      reason: d.reason,
+    }));
+
+    const incompatibilitiesForAi = incompatibilities.map((i) => ({
+      modAName: i.modAName,
+      modBName: i.modBName,
+      reason: i.reason,
+    }));
+
     const prompt = `Analiza este modpack. Debes responder únicamente con un objeto JSON válido, sin markdown, sin texto adicional y sin bloques de código.
 La respuesta debe cumplir exactamente esta estructura:
-{"summary":"string","compatible":true,"warnings":["string"],"missingDependencies":[{"modId":"string","modName":"string","dependencyId":"string","dependencyName":"string","reason":"string"}],"incompatibilities":[{"modAId":"string","modAName":"string","modBId":"string","modBName":"string","reason":"string"}],"recommendations":["string"]}
+{"summary":"string","compatible":true,"warnings":["string"],"recommendations":["string"]}
 
-REGLA CRÍTICA: En los textos narrativos (summary, warnings, recommendations, reason), utiliza SIEMPRE los nombres legibles de los mods (ejemplo: "Photo Realistic Mode", "Graphics API"). Queda ESTRICTAMENTE PROHIBIDO mostrar o mencionar UUIDs o IDs en las explicaciones.
+REGLA ABSOLUTA: Utiliza ÚNICAMENTE los nombres legibles de los mods provistos en los datos. Queda estrictamente prohibido mostrar o inventar códigos o IDs.
 
 Juego: ${gameVersion.game.name}
 Versión: ${gameVersion.version}
-Mods seleccionados: ${JSON.stringify(
-      mods.map((m) => ({ id: m.id, name: m.name, version: m.version }))
-    )}
-Dependencias faltantes detectadas: ${JSON.stringify(missingDependencies)}
-Incompatibilidades detectadas: ${JSON.stringify(incompatibilities)}`;
+Mods seleccionados: ${JSON.stringify(modsForAi)}
+Dependencias faltantes detectadas: ${JSON.stringify(missingDependenciesForAi)}
+Incompatibilidades detectadas: ${JSON.stringify(incompatibilitiesForAi)}`;
 
     const result = await generateAnalysis(prompt);
     const report = parseReport(result.text);
 
-    const replaceIdsWithNames = (text: string) => {
-      const uuidRegex = /(?:con ID\s*|ID\s*)?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/gi;
-      return text.replace(uuidRegex, (match, uuid) => {
-        const name = modNamesMap.get(uuid);
-        return name ? `'${name}'` : match; 
-      });
-    };
+    // 5. GENERAR RECOMENDACIONES DETERMINISTAS EN TYPESCRIPT
+    const exactRecommendations: string[] = [
+      ...missingDependencies.map(
+        (d) => `Añadir el mod "${d.dependencyName}" para completar la configuración de "${d.modName}".`
+      ),
+      ...incompatibilities.map(
+        (i) => `Remover "${i.modAName}" o "${i.modBName}" para resolver la incompatibilidad entre ellos.`
+      ),
+    ];
 
-    report.summary = replaceIdsWithNames(report.summary);
-    report.warnings = report.warnings.map(replaceIdsWithNames);
-    report.recommendations = report.recommendations.map(replaceIdsWithNames);
+    // Combinar las recomendaciones automáticas de TypeScript con sugerencias extras de la IA si existen
+    const finalRecommendations = Array.from(
+      new Set([...exactRecommendations, ...report.recommendations])
+    );
 
     return NextResponse.json({
       report: {
         ...report,
+        recommendations: finalRecommendations,
         missingDependencies,
         incompatibilities,
         compatible:
