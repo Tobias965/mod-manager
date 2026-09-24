@@ -16,6 +16,10 @@ La aplicación permite gestionar juegos, versiones, mods y modpacks desde una ú
 
 ModManager está diseñado con una arquitectura full-stack basada en Next.js, con autenticación mediante JWT, persistencia PostgreSQL y almacenamiento de archivos mediante Supabase Storage.
 
+## 🎥 Presentación del proyecto
+
+Consulta la presentación del proyecto en [Google Slides](https://docs.google.com/presentation/d/15V85phdkwsCRPSJCKcqnA9z2aOjUKP2toM8hu2c3bvc/edit?usp=sharing).
+
 ## ✨ Funcionalidades Principales
 
 ### 👤 Usuarios y autenticación
