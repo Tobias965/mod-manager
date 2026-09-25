@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 type User = {
   id: string;
@@ -12,13 +12,14 @@ type User = {
 
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadUser() {
       try {
-        const response = await fetch("/api/auth/me");
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
 
         if (!response.ok) {
           setUser(null);
@@ -35,7 +36,7 @@ export default function Navbar() {
     }
 
     loadUser();
-  }, []);
+  }, [pathname]);
 
   async function logout() {
     try {
