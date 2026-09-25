@@ -55,7 +55,7 @@ export default async function ModpacksPage() {
   const modpacks = await getPublicModpacks();
 
   const isAuthenticated = Boolean(user);
-  const canCreate = user?.role === "CREATOR" || user?.role === "ADMIN";
+  const canCreate = user?.role === "CREATOR" || user?.role === "ADMIN" || user?.role === "USER";
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">

@@ -43,7 +43,7 @@ export default async function MyModpacksPage() {
   }
 
   const modpacks = await getUserModpacks(session.userId);
-  const canCreate = session.role === "CREATOR" || session.role === "ADMIN";
+  const canCreate = session.role === "CREATOR" || session.role === "ADMIN" || session.role === "USER";
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">

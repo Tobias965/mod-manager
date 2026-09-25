@@ -57,7 +57,8 @@ export default async function CreateModpackPage({
 
   if (
     session.role !== "CREATOR" &&
-    session.role !== "ADMIN"
+    session.role !== "ADMIN" &&
+    session.role !== "USER"
   ) {
     redirect("/modpacks");
   }
