@@ -24,7 +24,7 @@ export async function createModpack(
     throw new Error("Debes seleccionar una versión del juego");
   }
 
-  if (session.role !== "CREATOR" && session.role !== "ADMIN") {
+  if (session.role !== "CREATOR" && session.role !== "ADMIN" && session.role !== "USER") {
     throw new Error("No tienes permisos para crear modpacks");
   }
 
