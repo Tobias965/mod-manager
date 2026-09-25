@@ -42,6 +42,8 @@ function parseReport(text: string): AIAnalysisReport {
   }
 }
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   try {
     const session = await getSessionFromRequest(request);

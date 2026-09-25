@@ -35,7 +35,8 @@ export default function LoginPage() {
         return;
       }
 
-      window.location.assign("/");
+      router.refresh();
+      router.push("/");
     } catch {
       setError("No se pudo conectar con el servidor");
     } finally {
