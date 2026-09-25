@@ -35,8 +35,7 @@ export default function LoginPage() {
         return;
       }
 
-      // Refresco completo para enviar cookies y purgar el caché del router
-      router.push("/");
+      window.location.assign("/");
     } catch {
       setError("No se pudo conectar con el servidor");
     } finally {
