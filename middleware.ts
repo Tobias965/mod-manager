@@ -50,7 +50,7 @@ export async function middleware(request: NextRequest) {
 
     if (isAdminRoute && userRole !== "ADMIN") {
       console.warn(`⚠️ ACCESO DENEGADO: ${pathname} requiere ADMIN. Rol actual: "${userRole}"`);
-      return NextResponse.redirect(new URL("/unauthorized", request.url));
+      return NextResponse.redirect(new URL("/", request.url));
     }
 
     if (
