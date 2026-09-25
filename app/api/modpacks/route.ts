@@ -23,7 +23,8 @@ export async function POST(request: Request) {
 
     if (
       session.role !== "CREATOR" &&
-      session.role !== "ADMIN"
+      session.role !== "ADMIN" &&
+      session.role !== "USER"
     ) {
       return NextResponse.json(
         { error: "No tienes permisos para crear modpacks" },
