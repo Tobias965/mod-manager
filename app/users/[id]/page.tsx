@@ -452,7 +452,7 @@ export default function UserDetailPage({
 
           {user._count.mods > 0 && (
             <Link
-              href={`/users/${user.id}/mods`}
+              href={`/mods/manage`}
               className="text-sm font-medium text-blue-600 hover:underline"
             >
               Ver todos ({user._count.mods}) →
@@ -496,7 +496,7 @@ export default function UserDetailPage({
 
           {user._count.modpacks > 0 && (
             <Link
-              href={`/users/${user.id}/modpacks`}
+              href={`/modpacks/me`}
               className="text-sm font-medium text-blue-600 hover:underline"
             >
               Ver todos ({user._count.modpacks}) →
