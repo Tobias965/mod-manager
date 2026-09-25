@@ -43,6 +43,8 @@ function parseReport(text: string): AIAnalysisReport {
 }
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 export async function POST(request: Request) {
   try {

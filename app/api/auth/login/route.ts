@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, createToken } from "@/lib/auth";
+import { revalidatePath } from "next/cache";
 
 export async function POST(request: Request) {
   try {
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
     });
-
+    revalidatePath("/", "layout");
     return response;
   } catch (error) {
     console.error("Error en login:", error);
